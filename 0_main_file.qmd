@@ -1,0 +1,257 @@
+---
+title: Analysis of Campaign Contributions and Their Impact on Election Outcomes
+
+authors:
+  - name: Siddharth Nayak
+    affiliation: University of Auckland
+    roles: writing
+    corresponding: true
+    email: siddharthnayak128@gmail.com
+bibliography: references.bib
+date: last-modified
+abstract: This manuscript analyzes the impact of campaign contributions on election outcomes, focusing on total contributions, the role of wealthy donors, small donors, and retired individuals. It explores the geographical patterns of donations to assess how different factors influence electoral success.
+keywords: -Campaign Contributions Election Outcomes
+number-sections: True
+
+ 
+---
+```{python}
+import pandas as pd
+import matplotlib.pyplot as plt
+import numpy as np
+import plotly.express as px
+import matplotlib.ticker as mticker
+import itables
+from itables import show
+import seaborn as sns
+from IPython.display import Markdown, display
+data = pd.read_csv('P00000001-ALL.csv')
+df =data.dropna(subset=['contbr_st'])
+total_states= df["contbr_st"].unique().size
+candidates= df["cand_nm"].unique().size
+```
+# Introduction
+![Statenames](images/statemap.png)
+In this analysis, we explore the influence of different types of donors on campaign contributions across `{python} total_states` states and `{python} candidates` participating candidates. The dataset provides a comprehensive view of political donations, allowing us to examine the distribution and impact of contributions from various donor categories. We aim to understand the contributions from different donor types, specifically small investors, wealthy investors, and retired individuals. By doing so, we uncover patterns in how these groups influence campaign finances.
+
+
+# Data and Methodology
+
+
+## Classification of donations
+
+
+```{python}
+
+df_positive= df[df["contb_receipt_amt"]>0]
+total_contribution_amount= float(df["contb_receipt_amt"].sum())
+adjustment_percentage= round(((float(df_positive["contb_receipt_amt"].sum())/total_contribution_amount)-1)*100,2)
+
+bins = [-500000, 0, 100, 3000,500000]
+labels = ['Negative','Small (0-100)', 'Medium (100-3000)','Wealthy(3000-5000000)']
+
+df['contb_bins'] = pd.cut(df['contb_receipt_amt'], bins=bins, labels=labels)
+
+donation_bin = df['contb_bins'].value_counts()
+donation_bin
+bin_summary = df.groupby('contb_bins').agg(
+    count=('contb_receipt_amt', 'count'),
+    amount_contribution=('contb_receipt_amt', 'sum'),
+).reset_index()
+bin_summary = bin_summary.applymap(lambda x: f"{x:,.0f}" if isinstance(x, (int, float)) else x)
+
+# Display the formatted table as Markdown
+display(Markdown(bin_summary.to_markdown(index=False)))
+
+```
+
+To categorize donation amounts, we created bins based on contribution size:
+
+
+Negative: Donations that might represent withdrawals.
+Small (0-100): Contributions ranging from $0 to $100.
+Medium (100-3000): Contributions ranging from $100 to $3,000.
+Wealthy (3000-5000000): Contributions from $3,000 to $5,000,000.
+Using these bins, we classified each donation into one of the above categories.
+
+
+## Handling Negative Contributions
+```{python}
+df_positive= df[df["contb_receipt_amt"]>0]
+total_contribution_amount= float(df["contb_receipt_amt"].sum())
+adjustment_percentage= round(((float(df_positive["contb_receipt_amt"].sum())/total_contribution_amount)-1)*100,2)
+adj= round(1-(((float(df_positive["contb_receipt_amt"].sum())/total_contribution_amount)-1)),4)
+```
+To calculate the contribution percentage by donor type, we normally use the following formula:
+
+$${
+\text{Contribution \%} = \frac{\text{Contribution of Donor Type} \times 100}{\text{Total Contribution}}
+}$$
+However, our dataset includes negative contributions, which are likely withdrawals. These negative values were handled separately to avoid skewing the analysis. While these withdrawals do not impact the overall sum of contributions, they can distort the contribution by donor type.
+
+$$
+\text{Adjustment \%} = \left(\frac{\text{Total Contributions Including Negative Values}}{\text{Total Contributions Excluding Negative Values}} - 1\right) \times 100
+$$
+To account for this exclusion, we calculated the percentage difference between the total contributions including and excluding negative values. The adjustment percentage came as `{python} adjustment_percentage`%. 
+The adjusted contribution percentage is calculated as:
+
+
+
+Since the exact donors who withdrew their contributions are unknown, we excluded negative values from our calculations of contribution amounts by donor type. This approach is a reasonable assumption given the lack of detailed information on individual withdrawals. 
+
+
+:::{#thm-adjusted}
+$$
+{
+\text{Adjusted Contribution \%} = \frac{\text{Contribution of Donor Type} \times (1-0.036) \times 100}{\text{Total Contribution}}
+}$$
+:::
+
+
+# Data Analysis{#sec-data}
+## Total Contributions
+the formula test- @thm-adjusted
+
+
+
+{{< embed charts.qmd#fig-figures >}}
+
+
+
+
+The analysis of total contributions provides insight into the financial support landscape across different states and candidate campaigns. Higher total contributions indicate stronger fundraising efforts and broader support bases, highlighting the importance of securing diverse funding sources.
+
+{{< embed charts.qmd#fig-Statewisecontribution >}}
+
+
+
+
+```{python}
+import numpy as np
+total_contribution_amount=float(df["contb_receipt_amt"].sum())
+total_contribution_amount_formatted="{:,.2f}".format(float(df["contb_receipt_amt"].sum()))
+ 
+```
+
+The total contribution amount is $`{python} total_contribution_amount_formatted` 
+
+## Influence of Wealthy Donors
+```{python}
+
+bins = [-500000, 0, 100, 3000,5000000]
+labels = ['Negative','Small (0-100)', 'Medium (100-3000)','Wealthy(3000-5000000)']
+
+df['contb_bins'] = pd.cut(df['contb_receipt_amt'], bins=bins, labels=labels)
+
+donation_bin = df['contb_bins'].value_counts()
+donation_bin
+#donation_count= donation_bin.to_dict()
+#donation_count
+df_wealthy = df[df["contb_bins"]=="Wealthy(3000-5000000)"]
+df_wealthy=df_wealthy.groupby(["cand_nm","contbr_st"]).agg({"contb_receipt_amt":"sum"}).reset_index()
+#df_wealthy
+df_wealthy_max= df_wealthy.groupby(["contbr_st"]).agg({ "contb_receipt_amt":"max"}).reset_index()
+df_wealthy_max
+df_wealthy_merge = pd.merge(df_wealthy_max,df_wealthy , on=["contbr_st", "contb_receipt_amt"], how="left")
+df_wealthy_merge 
+fig = px.choropleth(df_wealthy_merge,locations="contbr_st", locationmode="USA-states", color="cand_nm",
+    scope="usa",
+    color_continuous_scale='plasma',
+    labels={'cand_nm': 'Candidate Name'},hover_data="contb_receipt_amt",title="Highest contribution earned by a candidate statewise from wealthy")
+
+fig.show()
+```
+```{python}
+wealthy_contribution= float(df_wealthy["contb_receipt_amt"].sum())
+wealthy_contribution_percentage= round(float(wealthy_contribution*adj*100/total_contribution_amount),2)
+Wealthy_table= df_wealthy_merge["cand_nm"].value_counts().reset_index(name="States")
+display(Markdown(Wealthy_table.to_markdown(index = False)))
+```
+The total contribution amount by wealthy is is `{python} wealthy_contribution_percentage` %
+
+Wealthy donors, defined as those contributing over $5,000, made significant contributions concentrated among a few candidates. This pattern suggests that high-net-worth individuals tend to support candidates they believe in strongly or who align closely with their interests. Their contributions play a vital role in providing the financial resources needed for expansive campaign activities.
+
+## Role of Small Donors
+```{python}
+
+df_small = df[df["contb_bins"]=="Small (0-100)"]
+df_small=df_small.groupby(["cand_nm","contbr_st"]).agg({"contb_receipt_amt":"sum"}).reset_index()
+#df_small
+df_small_max= df_small.groupby(["contbr_st"]).agg({ "contb_receipt_amt":"max"}).reset_index()
+df_small_max
+df_small_merge = pd.merge(df_small_max,df_small , on=["contbr_st", "contb_receipt_amt"], how="left")
+df_small_merge 
+fig = px.choropleth(df_small_merge,locations="contbr_st", locationmode="USA-states", color="cand_nm",
+    scope="usa",
+    color_continuous_scale='plasma',
+    labels={'cand_nm': 'Candidate Name'},hover_data="contb_receipt_amt",title="Highest contribution earned by a candidate statewise from small investors")
+fig.show()
+```
+```{python}
+small_contribution= float(df_small["contb_receipt_amt"].sum())
+small_contribution_percentage= round(float(small_contribution*adj*100/total_contribution_amount),2)
+Small_table= df_small_merge["cand_nm"].value_counts().reset_index(name="States")
+display(Markdown(Small_table.to_markdown(index = False)))
+```
+
+Small donors, contributing amounts below $100, represent grassroots support for candidates. While individual contributions are smaller, their collective impact is substantial, reflecting a broad base of public engagement. This type of support may be critical for candidates who rely on widespread community backing rather than a few large donors.
+The total contribution amount by wealthy is is `{python} small_contribution_percentage`% 
+
+## Impact of Retired Donors
+
+```{python}
+
+df_retired= df[df["contbr_occupation"]=="RETIRED"]
+df_retired=df_retired.groupby(["cand_nm","contbr_st"]).agg({"contb_receipt_amt":"sum"}).reset_index()
+#df_retired
+df_retired_max= df_retired.groupby(["contbr_st"]).agg({ "contb_receipt_amt":"max"}).reset_index()
+df_retired_max
+df_retired_merge = pd.merge(df_retired_max,df_retired , on=["contbr_st", "contb_receipt_amt"], how="left")
+fig = px.choropleth(df_retired_merge,locations="contbr_st", locationmode="USA-states", color="cand_nm",
+    scope="usa",
+    color_continuous_scale='plasma',
+    labels={'cand_nm': 'Candidate Name'},hover_data="contb_receipt_amt",title="Highest contribution earned by a candidate statewise from Retired")
+fig.show()
+```
+```{python}
+Retired_table= df_retired_merge["cand_nm"].value_counts().reset_index()
+Retired_contribution= float(df_retired["contb_receipt_amt"].sum())
+Retired_contribution_percentage= round(float(Retired_contribution*adj*100/total_contribution_amount),2)
+display(Markdown(Retired_table.to_markdown(index = False)))
+```
+The total contribution amount by wealthy is is `{python} Retired_contribution_percentage` %
+
+Retired donors made notable contributions, often directed toward candidates advocating policies beneficial to retirees. The analysis revealed that regions with larger retiree populations saw higher donation amounts from this group, indicating their potential influence on campaign priorities.
+
+## Geographic Patterns in Donations
+
+```{python}
+cand_statewise_count= df.groupby(["cand_nm","contbr_st"]).agg({"contb_receipt_amt":"sum"}).reset_index()
+cand_statewise_count
+cand_state_only= cand_statewise_count.groupby(["contbr_st","cand_nm"]).agg({"contb_receipt_amt":"sum"}).reset_index()
+cand_state_only
+cand_state_max= cand_state_only.groupby(["contbr_st"]).agg({ "contb_receipt_amt":"max"}).reset_index()
+cand_state_maxf = pd.merge(cand_state_max, cand_state_only, on=["contbr_st", "contb_receipt_amt"], how="left")
+cand_state_maxf
+fig = px.choropleth(cand_state_maxf,locations="contbr_st", locationmode="USA-states", color="cand_nm",
+    scope="usa",
+    color_continuous_scale='plasma',
+    labels={'cand_nm': 'Candidate Name'},hover_data="contb_receipt_amt",title="Highest contribution earned by a candidate statewise")
+fig.show()
+```
+```{python}
+Max_table= cand_state_maxf["cand_nm"].value_counts().reset_index()
+display(Markdown(Max_table.to_markdown(index = False)))
+```
+Geographic analysis showed varying levels of contributions across states, indicating regional preferences and priorities. This variation emphasizes the importance of regional campaign strategies to effectively mobilize financial support and address localized concerns.
+
+# Conclusion
+This analysis reveals the diverse roles of different types of donors in shaping campaign financing. Wealthy donors provide substantial funds that can significantly boost campaign activities, while small donors and retirees contribute to building a broad base of support. Geographic patterns of donations further underscore the importance of targeted regional strategies in political fundraising efforts. Understanding these dynamics can help in crafting more effective campaign strategies.
+go to @sec-data for more
+
+go to @fig-figures for figure
+
+
+## Section
+This is a simple placeholder for the manuscript's main document [@knuth84].
+

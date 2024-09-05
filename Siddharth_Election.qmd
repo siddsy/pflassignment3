@@ -1,0 +1,158 @@
+---
+title: "Election Data"
+#author: "Siddharth"
+format: dashboard
+---
+# Chart
+
+::: {.heading}
+**US Election Data 2011-12**
+:::
+
+<style>.heading{ font-size: 24px; margin-left :auto ; margin-right:auto}</style>
+
+
+
+## Row {height="55%"}
+
+```{python}
+#| title: Candidate- wise contribution count distribution
+import pandas as pd
+import numpy as np
+import plotly.express as px  
+import itables  
+
+df = pd.read_csv("P00000001-ALL.csv")
+
+#Use of groupby to get the number of occurances of all candidates 
+#named it count to use it to plot pie chart
+df_votes= df.groupby("cand_nm").size().reset_index(name="count")
+votes_fig = px.pie(df_votes, values='count', names='cand_nm')
+votes_fig.show()
+
+```
+## Row {height="60%"}
+
+```{python}
+#| title: Number of Contributions by State for Each Candidate
+#Use of groupby to get state-wise contribution count for each candidate
+df_state_cont = df.groupby(["cand_nm","contbr_st"]).size().reset_index(name='count')
+#plot a choropleth indicating contributor count state-wise
+fig = px.choropleth(df_state_cont,locations="contbr_st", locationmode="USA-states", color="count", animation_frame='cand_nm',
+    scope="usa",
+    color_continuous_scale='plasma',
+    labels={'count': 'Number of Contributions'})
+fig.show()
+```
+```{python}
+#| title: Month- wise contribution to candidates by contributors
+#function to slice month and year from date
+def get_month(x):
+    return x[3:]
+
+#performed data transformation by creating new column to get month and year of contribution
+
+df["Month-yr"]= df["contb_receipt_dt"].map(get_month)
+
+# performed Aggregation by summing contributions by month-year 
+df_monthly_cont=df.groupby("Month-yr").agg({"contb_receipt_amt":"sum"}).reset_index()
+
+#convert the Month-yr to date format, so that it can be sorted
+df_monthly_cont["Month-yr"] = pd.to_datetime(df_monthly_cont["Month-yr"],format= "%b-%y")
+
+
+df_monthly_cont= df_monthly_cont.sort_values(by="Month-yr")
+#converted back to display in graph im Month-Year format
+df_monthly_cont["Month-yr"] = df_monthly_cont["Month-yr"].dt.strftime('%b-%Y')
+
+#plot a scatter graph where size indicates the amount of contribution
+
+cont_fig = px.bar(df_monthly_cont, x="Month-yr",      y="contb_receipt_amt",
+          hover_data=["Month-yr","contb_receipt_amt"], labels={'contb_receipt_amt':'Amount received','Month-yr':'Month- Year'}, height=300)
+cont_fig.update_layout(showlegend= False,xaxis=dict(tickangle=-90))
+```
+
+
+
+# Data
+::: {.heading}
+**US Election Summary**
+:::
+
+<style>.heading{ font-size: 24px; margin-left :auto ; margin-right:auto}</style>
+
+## Row {height="20%"}
+
+```{python}
+#| content: valuebox
+#| title: "Election Candidates"
+#| icon: person
+#| color: primary
+dict(
+#identifies the number of unique candidates in cand_nm
+  value = df["cand_nm"].unique().size
+)
+```
+
+```{python}
+#| content: valuebox
+#| title: "Number of contributions"
+dict(
+  icon = "people",
+  color = "secondary",
+  #identifies total number of contributions(not unique)
+  value = df["contbr_nm"].size
+)
+```
+```{python}
+#| content: valuebox
+#| title: "Amount Contributed"
+#| icon: currency-dollar
+dict(
+
+  color = "success",
+  #returns the sum of the amount received
+  value = int(df["contb_receipt_amt"].sum())
+)
+```
+
+
+## Row {height="80%"}{.tabset}
+ 
+```{python}
+#| title: Contributor count by State for Each Candidate
+from itables import show  #to get interactive tables
+#columnDefs has been defined so that we can scroll through whole data #without increasing the page layout size
+show(df_state_cont,classes= "display nowrap cell-border",columnDefs=[{"className": "dt-center", "targets": "_all"}], scrollCollapse=True, paging=False,style=";margin-top:auto; margin-bottom:auto;")
+```
+
+```{python}
+#| title: Contributor count for Each Candidate
+
+#display table , dom="t" specifies to display only table
+show(df_votes,classes= "display nowrap cell-border",columnDefs=[{"className": "dt-center", "targets": "_all"}], scrollCollapse=True, paging=False, dom="t",style=";margin-top:auto; margin-bottom:auto;")
+```
+
+
+
+::: {.card title="Details"}
+
+::: {.callout-note}
+Note that the number of contributions are not unique contributors but the total number of contributions. Some contributors have donated multiple times.
+:::
+**Summary:**<br>
+
+This dashboard presents an analysis of the 2011-12 U.S. election campaign contributions. The data is visualized to provide insights into candidate-wise contribution count, geographical distribution of contributors, and the timing of contributions throughout the election cycle. Key metrics such as the total number of candidates, total contributions, and total amount contributed are summarized in value boxes.
+<br>
+
+**Detailed Breakdown:**<br>
+
+**Candidate-wise contribution count:** A pie chart shows the distribution of contributions among the candidates, helping to identify percentage of contribution received by each candidate.<br>
+**Number of Contributions by State for Each Candidate:** A choropleth map displays the number of contributors by state for each candidate, revealing geographical trends in political support.<br>
+**Month- wise contribution to candidates by contributors:** A bar graph illustrates the flow of contributions over time, highlighting the financial activity.<br>
+**Value Boxes:** Key figures such as the number of candidates, total contributions, and the total amount contributed are summarized for quick reference.<br>
+**Data Tables:** Interactive tables provide a detailed breakdown of contributor count by state and the second table shows the election candiates and their contributors count. Data can also be searched and filtered allowing for in-depth exploration of the data. 
+
+:::
+
+
